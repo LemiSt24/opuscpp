@@ -17,7 +17,6 @@
 #include <string>
 #include <vector>
 
-#include "glog/logging.h"
 #include "opus_wrapper.h"
 
 std::string opus::ErrorToString(int error) {
@@ -59,11 +58,9 @@ opus::Encoder::Encoder(opus_int32 sample_rate, int num_channels,
       opus_encoder_create(sample_rate, num_channels, application, &error));
   valid_ = error == OPUS_OK;
   if (!valid()) {
-    LOG(INFO) << "Could not construct encoder. Error: " << ErrorToString(error);
     return;
   }
   if (expected_loss_percent > 0) {
-    LOG(INFO) << "Enabling FEC in the encoder.";
     Ctl(OPUS_SET_INBAND_FEC(1));
     Ctl(OPUS_SET_PACKET_LOSS_PERC(expected_loss_percent));
   }
@@ -101,8 +98,6 @@ std::vector<std::vector<unsigned char>> opus::Encoder::Encode(
   const auto frame_length = frame_size * num_channels_ * sample_size;
   auto data_length = pcm.size() * sample_size;
   if (data_length % frame_length != 0u) {
-    LOG(WARNING) << "PCM samples contain an incomplete frame. Ignoring the "
-                    "incomplete frame.";
     data_length -= (data_length % frame_length);
   }
 
@@ -121,7 +116,6 @@ std::vector<unsigned char> opus::Encoder::EncodeFrame(
   auto num_bytes = opus_encode(encoder_.get(), &*frame_start, frame_size,
                                encoded.data(), encoded.size());
   if (num_bytes < 0) {
-    LOG(ERROR) << "Encode error: " << opus::ErrorToString(num_bytes);
     return {};
   }
   encoded.resize(num_bytes);
@@ -154,7 +148,6 @@ std::vector<opus_int16> opus::Decoder::Decode(
   auto num_samples = opus_decode(decoder_.get(), packet.data(), packet.size(),
                                  decoded.data(), frame_size, decode_fec);
   if (num_samples < 0) {
-    LOG(ERROR) << "Decode error: " << opus::ErrorToString(num_samples);
     return {};
   }
   decoded.resize(num_samples * num_channels_);
@@ -167,7 +160,6 @@ std::vector<opus_int16> opus::Decoder::DecodeDummy(int frame_size) {
   auto num_samples =
       opus_decode(decoder_.get(), nullptr, 0, decoded.data(), frame_size, true);
   if (num_samples < 0) {
-    LOG(ERROR) << "Decode error: " << opus::ErrorToString(num_samples);
     return {};
   }
   decoded.resize(num_samples * num_channels_);
