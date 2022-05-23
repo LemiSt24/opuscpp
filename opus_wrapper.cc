@@ -108,12 +108,42 @@ std::vector<std::vector<unsigned char>> opus::Encoder::Encode(
   return encoded;
 }
 
+std::vector<std::vector<unsigned char>> opus::Encoder::EncodeFloat(
+    const std::vector<float>& pcm, int frame_size) {
+  constexpr auto sample_size = sizeof(pcm[0]);
+  const auto frame_length = frame_size * num_channels_ * sample_size;
+  auto data_length = pcm.size() * sample_size;
+  if (data_length % frame_length != 0u) {
+    data_length -= (data_length % frame_length);
+  }
+
+  std::vector<std::vector<unsigned char>> encoded;
+  for (std::size_t i{}; i < data_length; i += frame_length) {
+    encoded.push_back(EncodeFrameFloat(pcm.begin() + (i / sample_size), frame_size));
+  }
+  return encoded;
+}
+
 std::vector<unsigned char> opus::Encoder::EncodeFrame(
     const std::vector<opus_int16>::const_iterator& frame_start,
     int frame_size) {
   const auto frame_length = (frame_size * num_channels_ * sizeof(*frame_start));
   std::vector<unsigned char> encoded(frame_length);
   auto num_bytes = opus_encode(encoder_.get(), &*frame_start, frame_size,
+                               encoded.data(), encoded.size());
+  if (num_bytes < 0) {
+    return {};
+  }
+  encoded.resize(num_bytes);
+  return encoded;
+}
+
+std::vector<unsigned char> opus::Encoder::EncodeFrameFloat(
+    const std::vector<float>::const_iterator& frame_start,
+    int frame_size) {
+  const auto frame_length = (frame_size * num_channels_ * sizeof(*frame_start));
+  std::vector<unsigned char> encoded(frame_length);
+  auto num_bytes = opus_encode_float(encoder_.get(), &*frame_start, frame_size,
                                encoded.data(), encoded.size());
   if (num_bytes < 0) {
     return {};
@@ -140,12 +170,36 @@ std::vector<opus_int16> opus::Decoder::Decode(
   }
   return decoded;
 }
+std::vector<float> opus::Decoder::DecodeFloat(
+    const std::vector<std::vector<unsigned char>>& packets, int frame_size,
+    bool decode_fec) {
+  std::vector<float> decoded;
+  for (const auto& enc : packets) {
+    auto just_decoded = DecodeFloat(enc, frame_size, decode_fec);
+    decoded.insert(std::end(decoded), std::begin(just_decoded),
+                   std::end(just_decoded));
+  }
+  return decoded;
+}
 
 std::vector<opus_int16> opus::Decoder::Decode(
     const std::vector<unsigned char>& packet, int frame_size, bool decode_fec) {
   const auto frame_length = (frame_size * num_channels_ * sizeof(opus_int16));
   std::vector<opus_int16> decoded(frame_length);
   auto num_samples = opus_decode(decoder_.get(), packet.data(), packet.size(),
+                                 decoded.data(), frame_size, decode_fec);
+  if (num_samples < 0) {
+    return {};
+  }
+  decoded.resize(num_samples * num_channels_);
+  return decoded;
+}
+
+std::vector<float> opus::Decoder::DecodeFloat(
+    const std::vector<unsigned char>& packet, int frame_size, bool decode_fec) {
+  const auto frame_length = (frame_size * num_channels_ * sizeof(opus_int16));
+  std::vector<float> decoded(frame_length);
+  auto num_samples = opus_decode_float(decoder_.get(), packet.data(), packet.size(),
                                  decoded.data(), frame_size, decode_fec);
   if (num_samples < 0) {
     return {};

@@ -77,11 +77,18 @@ class Encoder {
   std::vector<std::vector<unsigned char>> Encode(
       const std::vector<opus_int16>& pcm, int frame_size);
 
+  // Takes float audio data and encodes it.
+  std::vector<std::vector<unsigned char>> EncodeFloat(
+      const std::vector<float>& pcm, int frame_size);
+
   int valid() const { return valid_; }
 
  private:
   std::vector<unsigned char> EncodeFrame(
       const std::vector<opus_int16>::const_iterator& frame_start,
+      int frame_size);
+  std::vector<unsigned char> EncodeFrameFloat(
+      const std::vector<float>::const_iterator& frame_start,
       int frame_size);
 
   template <typename... Ts>
@@ -108,6 +115,9 @@ class Decoder {
   std::vector<opus_int16> Decode(
       const std::vector<std::vector<unsigned char>>& packets, int frame_size,
       bool decode_fec);
+  std::vector<float> DecodeFloat(
+      const std::vector<std::vector<unsigned char>>& packets, int frame_size,
+      bool decode_fec);
 
   int valid() const { return valid_; }
 
@@ -115,6 +125,9 @@ class Decoder {
   // see documentation at:
   // https://mf4.xiph.org/jenkins/view/opus/job/opus/ws/doc/html/group__opus__decoder.html#ga7d1111f64c36027ddcb81799df9b3fc9
   std::vector<opus_int16> Decode(const std::vector<unsigned char>& packet,
+                                 int frame_size, bool decode_fec);
+
+  std::vector<float> DecodeFloat(const std::vector<unsigned char>& packet,
                                  int frame_size, bool decode_fec);
 
   // Generates a dummy frame by passing nullptr to the underlying opus decode.
